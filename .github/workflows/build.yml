@@ -1,0 +1,31 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build executable
+        run: pyinstaller --noconfirm --clean --onefile --console --name Autoplit --collect-all cv2 --collect-all pydirectinput autopilot.py
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Autoplit-Windows
+          path: dist/Autoplit.exe
+          if-no-files-found: error
+          retention-days: 14
