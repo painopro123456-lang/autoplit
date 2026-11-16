@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -22,10 +22,10 @@ jobs:
           pip install -r requirements.txt pyinstaller
       - name: Build executable
         run: pyinstaller --noconfirm --clean --onefile --console --name Autoplit --collect-all cv2 --collect-all pydirectinput autopilot.py
-      - name: Upload executable
-        uses: actions/upload-artifact@v4
+      - name: Publish direct EXE download
+        uses: softprops/action-gh-release@v2
         with:
-          name: Autoplit-Windows
-          path: dist/Autoplit.exe
-          if-no-files-found: error
-          retention-days: 14
+          tag_name: autoplit-build-${{ github.run_number }}
+          name: Autoplit Windows Build ${{ github.run_number }}
+          files: dist/Autoplit.exe
+          make_latest: true
