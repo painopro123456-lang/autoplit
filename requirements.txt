@@ -1,0 +1,1 @@
+opencv-python>=4.9\nnumpy>=1.26\nmss>=9.0\npydirectinput>=1.0.4\npywin32>=306\npsutil>=5.9\n
