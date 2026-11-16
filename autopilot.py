@@ -25,8 +25,6 @@ def find_roblox_window():
         if not win32gui.IsWindowVisible(hwnd):
             return
         title = win32gui.GetWindowText(hwnd).lower()
-        if not title:
-            return
         try:
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             process = psutil.Process(pid).name().lower()
@@ -42,10 +40,9 @@ def find_roblox_window():
 
 
 def capture_window(hwnd):
-    # PrintWindow can capture a non-focused window. Some Roblox graphics modes
-    # do not support it; in that case use the visible client-area fallback.
     left, top = win32gui.ClientToScreen(hwnd, (0, 0))
-    right, bottom = win32gui.ClientToScreen(hwnd, win32gui.GetClientRect(hwnd)[2:])
+    client = win32gui.GetClientRect(hwnd)
+    right, bottom = win32gui.ClientToScreen(hwnd, (client[2], client[3]))
     width, height = right - left, bottom - top
     if width < 250 or height < 180:
         return None
@@ -71,7 +68,6 @@ def capture_window(hwnd):
     if result == 1 and frame.size and np.mean(frame[:, :, :3]) > 3:
         return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
-    # Fallback captures only Roblox's client rectangle, not the whole desktop.
     import mss
     with mss.mss() as sct:
         shot = np.array(sct.grab({
@@ -102,7 +98,6 @@ def lane_error(frame):
         slope = dy / dx
         if abs(slope) < 0.28:
             continue
-        # Project each line to the bottom of the region.
         xb = x1 + (rh - y1) * dx / dy if dy else x1
         if slope < 0 and xb < w * 0.62:
             left_x.append(xb)
@@ -128,8 +123,8 @@ def release_all():
 
 def main():
     print("Formula Apex Racing Autopilot — experimental visual prototype")
-    print("Finds the Roblox window automatically. F6 = enable, F7 = stop, F8 = quit.")
-    print("For keyboard control, Roblox must be the active window.")
+    print("F6 = enable/disable, F7 = emergency stop, F8 = quit.")
+    print("Roblox must be the active window for keyboard driving.")
     enabled = False
     last_steer = None
     hwnd = None
@@ -146,15 +141,17 @@ def main():
                     time.sleep(1)
                     continue
 
-            if user32.GetAsyncKeyState(0x75) & 1:  # F6
+            if user32.GetAsyncKeyState(0x75) & 1:
                 enabled = not enabled
                 release_all()
+                last_steer = None
                 print("Autopilot", "ON" if enabled else "OFF")
-            if user32.GetAsyncKeyState(0x76) & 1:  # F7
+            if user32.GetAsyncKeyState(0x76) & 1:
                 enabled = False
                 release_all()
+                last_steer = None
                 print("Emergency stop.")
-            if user32.GetAsyncKeyState(0x77) & 1:  # F8
+            if user32.GetAsyncKeyState(0x77) & 1:
                 break
 
             frame = capture_window(hwnd)
@@ -163,20 +160,20 @@ def main():
                 continue
 
             if enabled:
-                foreground = user32.GetForegroundWindow() == hwnd
-                if not foreground:
+                if user32.GetForegroundWindow() != hwnd:
                     release_all()
-                    print("\rRoblox detected; click the Roblox game window to allow driving. ", end="")
+                    last_steer = None
+                    print("\rRoblox detected; click the Roblox game window to drive. ", end="")
                 else:
                     error, confidence = lane_error(frame)
                     if error is None or confidence < 0.25:
                         release_all()
-                        pydirectinput.keyDown(KEY_BRAKE)
                         last_steer = None
-                        print("\rLane not detected — braking for safety.                 ", end="")
+                        pydirectinput.keyDown(KEY_BRAKE)
+                        print("\rTrack edges not detected — braking for safety.             ", end="")
                     else:
-                        # Proportional steering with a small dead zone.
-                        steer = "a" if error > 0.10 else "d" if error < -0.10 else None
+                        # A lane center to the right means steer right (D), and vice versa.
+                        steer = "d" if error > 0.10 else "a" if error < -0.10 else None
                         if steer != last_steer:
                             if last_steer:
                                 pydirectinput.keyUp(last_steer)
@@ -188,6 +185,7 @@ def main():
                         print(f"\rDriving | lane error {error:+.2f} | confidence {confidence:.1f}     ", end="")
             else:
                 release_all()
+                last_steer = None
             time.sleep(0.035)
     except KeyboardInterrupt:
         pass
