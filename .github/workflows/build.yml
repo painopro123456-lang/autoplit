@@ -13,19 +13,32 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          python -m pip install -r requirements.txt pyinstaller
+
       - name: Build executable
-        run: pyinstaller --noconfirm --clean --onefile --console --name Autoplit --collect-all cv2 --collect-all pydirectinput autopilot.py
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --console --name Autoplit --collect-all cv2 autopilot.py
+          if (!(Test-Path "dist/Autoplit.exe")) { throw "Build failed: dist/Autoplit.exe was not created." }
+
       - name: Publish direct EXE download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: autoplit-build-${{ github.run_number }}
           name: Autoplit Windows Build ${{ github.run_number }}
           files: dist/Autoplit.exe
+          fail_on_unmatched_files: true
+          generate_release_notes: true
           make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
